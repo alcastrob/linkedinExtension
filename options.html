@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>LinkedIn Notas</title>
+  <style>
+    :root { color-scheme: light dark; --bg:#fff; --fg:#1d2226; --muted:#666; --line:#d0d7de; --accent:#0a66c2; --warn:#b24020; --ok:#1a7f37; }
+    @media (prefers-color-scheme: dark) { :root { --bg:#1b1f23; --fg:#e6e6e6; --muted:#9aa4ad; --line:#3a4148; --accent:#70b5f9; --warn:#ff8a65; --ok:#56d364; } }
+    body { background:var(--bg); color:var(--fg); font:15px/1.5 system-ui, sans-serif; max-width:640px; margin:40px auto; padding:0 16px; }
+    h1 { font-size:22px; }
+    .card { border:1px solid var(--line); border-radius:8px; padding:16px; margin:16px 0; }
+    .row { display:flex; gap:8px; flex-wrap:wrap; margin-top:12px; }
+    button { font:inherit; padding:6px 14px; border-radius:16px; border:1px solid var(--accent); background:transparent; color:var(--accent); cursor:pointer; }
+    button.primary { background:var(--accent); color:#fff; }
+    button:disabled { opacity:.5; cursor:default; }
+    .muted { color:var(--muted); }
+    #status.ok { color:var(--ok); } #status.bad { color:var(--warn); }
+    code { background:rgba(127,127,127,.15); padding:1px 5px; border-radius:4px; }
+  </style>
+</head>
+<body>
+  <h1>LinkedIn Notas</h1>
+  <p class="muted">Los comentarios sobre personas se guardan en un fichero JSON de tu equipo.</p>
+
+  <div class="card">
+    <div><strong>Fichero:</strong> <span id="fileName">—</span></div>
+    <div><strong>Estado:</strong> <span id="status">—</span></div>
+    <div><strong>Personas con comentarios:</strong> <span id="count">0</span></div>
+    <div class="row">
+      <button id="create" class="primary">Crear fichero nuevo…</button>
+      <button id="open">Elegir fichero existente…</button>
+      <button id="reconnect" hidden>Reconectar (conceder permiso)</button>
+    </div>
+  </div>
+
+  <p class="muted">
+    Si el fichero no está accesible, los cambios se guardan en una caché local y se vuelcan
+    al fichero en cuanto vuelva a estar disponible. Puedes editar el fichero a mano: se relee en cada operación.
+  </p>
+
+  <script type="module" src="options.js"></script>
+</body>
+</html>
