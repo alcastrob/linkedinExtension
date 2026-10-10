@@ -1,7 +1,7 @@
 // Utilidades compartidas entre el service worker y la página de opciones.
 // El handle de la carpeta se guarda en IndexedDB del origen de la extensión.
 // Cada persona es un fichero <Nombre>.md dentro de esa carpeta; su identidad es
-// el campo `slugLinkedId` del frontmatter.
+// el campo `slugLinkedIn` del frontmatter.
 
 const DB_NAME = 'linkedin-notas';
 const STORE = 'kv';
@@ -119,6 +119,14 @@ export function fileNameWithSlug(name, slug) {
   return `${sanitize(name) || 'sin-nombre'} (${sanitize(slug)}).md`;
 }
 
+// Nombre de la persona a partir del nombre de fichero.
+export function nameFromFileName(fileName, slug) {
+  let base = String(fileName || '').replace(/\.md$/i, '');
+  const suffix = ` (${sanitize(slug)})`;
+  if (base.endsWith(suffix) && base.length > suffix.length) base = base.slice(0, -suffix.length);
+  return base || slug;
+}
+
 // Slug que se deducía del nombre de fichero en el formato antiguo (<slug>.md codificado).
 export function slugFromFileName(name) {
   const base = name.replace(/\.md$/i, '');
@@ -154,8 +162,7 @@ function yamlTag(t) {
 export function serializePerson(person, slug) {
   const out = [
     '---',
-    `name: ${yamlValue(person.name)}`,
-    `slugLinkedId: ${yamlValue(slug)}`,
+    `slugLinkedIn: ${yamlValue(slug)}`,
     `url: ${person.url}`,
     `type: ${BASE_TYPE}`,
     'tags:',
@@ -171,10 +178,12 @@ export function serializePerson(person, slug) {
   return out.join('\n');
 }
 
+// El nombre de la persona es el del fichero (sin .md ni el sufijo " (slug)"); un `name:` en el
+// frontmatter, de versiones anteriores, tiene prioridad al leer.
 // Devuelve { slug, legacy, name, url, tags, comments } o null si el fichero no es una
 // nota de LinkedIn reconocible (sin slug) o no tiene ningún comentario.
-// `legacy` indica que no traía slugLinkedId (formato anterior, slug deducido de la URL).
-export function parsePerson(markdown) {
+// `legacy` indica que no traía slugLinkedIn (formato anterior, slug deducido de la URL).
+export function parsePerson(markdown, fileName = '') {
   let text = markdown.replace(/\r\n?/g, '\n');
   let name = '';
   let url = '';
@@ -190,7 +199,8 @@ export function parsePerson(markdown) {
       const [, key, val] = m;
       if (key === 'name') name = parseYamlValue(val);
       else if (key === 'url') url = parseYamlValue(val);
-      else if (key === 'slugLinkedId') slug = parseYamlValue(val);
+      // slugLinkedId: nombre usado por la versión 1.2.0, se sigue aceptando al leer.
+      else if (key === 'slugLinkedIn' || (key === 'slugLinkedId' && !slug)) slug = parseYamlValue(val);
       else if (key === 'tags') {
         if (val.trim()) {
           tags = val
@@ -234,5 +244,5 @@ export function parsePerson(markdown) {
   for (let i = 1; i < parts.length; i += 2) push(parts[i], parts[i + 1] || '');
 
   if (!comments.length) return null;
-  return { slug, legacy, name: name || slug, url, tags: withBaseTag(tags), comments };
+  return { slug, legacy, name: name || nameFromFileName(fileName, slug), url, tags: withBaseTag(tags), comments };
 }

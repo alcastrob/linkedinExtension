@@ -39,14 +39,14 @@ function classify(err) {
 // Lee todos los .md. Además de los datos devuelve un índice de la carpeta:
 //   files:  slug -> nombre de fichero actual
 //   taken:  nombres de fichero ocupados (en minúsculas; Windows no distingue mayúsculas)
-//   legacy: slugs cuyo fichero está en el formato antiguo (sin slugLinkedId)
+//   legacy: slugs cuyo fichero está en el formato antiguo (sin slugLinkedIn)
 async function readDir(dir) {
   const data = emptyData();
   const idx = { files: new Map(), taken: new Set(), legacy: new Set() };
   for await (const entry of dir.values()) {
     if (entry.kind !== 'file' || !/\.md$/i.test(entry.name)) continue;
     idx.taken.add(entry.name.toLowerCase());
-    const parsed = parsePerson(await (await entry.getFile()).text());
+    const parsed = parsePerson(await (await entry.getFile()).text(), entry.name);
     if (!parsed) continue;
     const { slug, legacy, ...person } = parsed;
     data.people[slug] = person;

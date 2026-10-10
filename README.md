@@ -22,12 +22,12 @@ se muestra como etiqueta amarilla junto al nombre.
 ## Formato de los ficheros
 
 Un fichero por persona, con su nombre real como nombre de fichero: `Nombre Apellido.md`.
-La identidad de la persona es el campo `slugLinkedId` (el slug de su URL `/in/<slug>/`).
+El frontmatter no lleva `name`: el nombre de la persona es el del fichero. La identidad es el campo
+`slugLinkedIn` (el slug de su URL `/in/<slug>/`).
 
 ```markdown
 ---
-name: "Nombre Apellido"
-slugLinkedId: "slug-del-perfil"
+slugLinkedIn: "slug-del-perfil"
 url: https://www.linkedin.com/in/slug-del-perfil/
 type: contacto
 tags:
@@ -47,10 +47,13 @@ Me respondió al mensaje, propone llamada.
 - Cada sección `##` es un comentario; su título es la fecha de creación.
 - **Nombre de fichero:** se fija al crear la nota, saneado para Windows (se eliminan `<>:"/\|?*`).
   Si ya existe otra persona con ese nombre, se usa `Nombre (slug).md`. Después no se renombra
-  automáticamente, así que puedes renombrarlo tú: se localiza por `slugLinkedId`, no por el nombre.
-- **Formato anterior:** los ficheros `<slug>.md` sin `slugLinkedId` se siguen leyendo (el slug se
+  automáticamente, así que puedes renombrarlo tú: se localiza por `slugLinkedIn`, no por el nombre,
+  y el nuevo nombre pasa a ser el de la persona. Un `name:` de versiones anteriores se acepta al
+  leer y desaparece al reescribir el fichero.
+- **Formato anterior:** los ficheros `<slug>.md` sin `slugLinkedIn` se siguen leyendo (el slug se
   deduce de `url`) y se renombran al formato nuevo la primera vez que se modifican.
-- Los ficheros `.md` de la carpeta sin `slugLinkedId` ni URL de LinkedIn se ignoran y no se tocan.
+  El nombre `slugLinkedId` usado en la versión 1.2.0 también se acepta al leer y se reescribe como `slugLinkedIn`.
+- Los ficheros `.md` de la carpeta sin `slugLinkedIn` ni URL de LinkedIn se ignoran y no se tocan.
 - Los comentarios no llevan identificador: se localizan por posición y se comprueba su texto,
   de modo que si editas un fichero a mano mientras el panel está abierto, la operación se
   descarta y el panel se refresca en vez de pisar nada.
