@@ -1,19 +1,17 @@
 import { getHandle, setHandle } from './store.js';
 
 const $ = (id) => document.getElementById(id);
-const PICKER_TYPES = [{ description: 'JSON', accept: { 'application/json': ['.json'] } }];
 
 const MESSAGES = {
   ok: ['Conectado y sincronizado', 'ok'],
-  'no-file': ['Sin fichero seleccionado', 'bad'],
-  permission: ['Hace falta volver a conceder permiso al fichero', 'bad'],
-  invalid: ['El fichero no contiene JSON válido (no se sobrescribe)', 'bad'],
-  error: ['Error al acceder al fichero', 'bad'],
+  'no-file': ['Sin carpeta seleccionada', 'bad'],
+  permission: ['Hace falta volver a conceder permiso a la carpeta', 'bad'],
+  error: ['Error al acceder a la carpeta', 'bad'],
 };
 
 async function refresh() {
   const handle = await getHandle();
-  $('fileName').textContent = handle ? handle.name : '—';
+  $('folderName').textContent = handle ? handle.name : '—';
 
   let status = 'no-file';
   let data = null;
@@ -36,21 +34,16 @@ async function adopt(handle) {
   await refresh();
 }
 
-$('create').addEventListener('click', async () => {
+$('choose').addEventListener('click', async () => {
   try {
-    const handle = await showSaveFilePicker({ suggestedName: 'linkedin-comentarios.json', types: PICKER_TYPES });
+    const handle = await showDirectoryPicker({ mode: 'readwrite', id: 'linkedin-notas' });
     await adopt(handle);
   } catch (err) {
-    if (err.name !== 'AbortError') console.error(err);
-  }
-});
-
-$('open').addEventListener('click', async () => {
-  try {
-    const [handle] = await showOpenFilePicker({ types: PICKER_TYPES, multiple: false });
-    await adopt(handle);
-  } catch (err) {
-    if (err.name !== 'AbortError') console.error(err);
+    if (err.name !== 'AbortError') {
+      console.error(err);
+      $('status').textContent = 'No se pudo usar esa carpeta (¿es una carpeta protegida del sistema? Usa una subcarpeta).';
+      $('status').className = 'bad';
+    }
   }
 });
 

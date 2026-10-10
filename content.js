@@ -261,16 +261,16 @@
 
     if (!comments.length) box.append(el('div', { className: 'empty', textContent: 'Aún no hay comentarios.' }));
 
-    for (const c of comments) {
+    comments.forEach((c, i) => {
       const item = el('div', { className: 'item' });
-      if (editingId === c.id) {
+      if (editingId === i) {
         const ta = el('textarea', { value: c.text });
         const save = el('button', { className: 'primary', textContent: 'Guardar' });
         const cancel = el('button', { textContent: 'Cancelar' });
         save.addEventListener('click', () => {
           const text = ta.value.trim();
           editingId = null;
-          if (text && text !== c.text) doOp({ op: 'edit', slug: current.slug, id: c.id, text });
+          if (text && text !== c.text) doOp({ op: 'edit', slug: current.slug, index: i, oldText: c.text, text });
           else renderPopover();
         });
         cancel.addEventListener('click', () => {
@@ -280,23 +280,21 @@
         item.append(ta, el('div', { className: 'actions' }, save, cancel));
         setTimeout(() => ta.focus(), 0);
       } else {
-        const edited = c.updatedAt !== c.createdAt;
-        const when = new Date(c.updatedAt).toLocaleString('es-ES');
         const edit = el('button', { textContent: 'Editar' });
         const del = el('button', {
-          className: 'danger' + (confirmId === c.id ? ' confirm' : ''),
-          textContent: confirmId === c.id ? 'Confirmar' : 'Eliminar',
+          className: 'danger' + (confirmId === i ? ' confirm' : ''),
+          textContent: confirmId === i ? 'Confirmar' : 'Eliminar',
         });
         edit.addEventListener('click', () => {
-          editingId = c.id;
+          editingId = i;
           renderPopover();
         });
         del.addEventListener('click', () => {
-          if (confirmId === c.id) {
+          if (confirmId === i) {
             confirmId = null;
-            doOp({ op: 'delete', slug: current.slug, id: c.id });
+            doOp({ op: 'delete', slug: current.slug, index: i, oldText: c.text });
           } else {
-            confirmId = c.id;
+            confirmId = i;
             clearTimeout(confirmTimer);
             confirmTimer = setTimeout(() => {
               confirmId = null;
@@ -307,12 +305,12 @@
         });
         item.append(
           el('div', { className: 'text', textContent: c.text }),
-          el('div', { className: 'meta', textContent: (edited ? 'Editado ' : '') + when }),
+          el('div', { className: 'meta', textContent: c.date || '' }),
           el('div', { className: 'actions' }, edit, del),
         );
       }
       box.append(item);
-    }
+    });
 
     // Nuevo comentario
     const newTa = el('textarea', { placeholder: 'Añadir comentario…' });

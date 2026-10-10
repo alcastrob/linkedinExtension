@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "LinkedIn Notas",
-  "version": "1.0.1",
-  "description": "Añade, edita y elimina comentarios privados sobre personas en LinkedIn, guardados en un fichero local.",
+  "version": "1.1.0",
+  "description": "Añade, edita y elimina comentarios privados sobre personas en LinkedIn, guardados en ficheros Markdown locales.",
   "permissions": ["storage"],
   "background": {
     "service_worker": "background.js",
