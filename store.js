@@ -1,11 +1,14 @@
 // Utilidades compartidas entre el service worker y la página de opciones.
 // El handle de la carpeta se guarda en IndexedDB del origen de la extensión.
-// Cada persona es un fichero <slug>.md dentro de esa carpeta.
+// Cada persona es un fichero <Nombre>.md dentro de esa carpeta; su identidad es
+// el campo `slugLinkedId` del frontmatter.
 
 const DB_NAME = 'linkedin-notas';
 const STORE = 'kv';
 const HANDLE_KEY = 'fileHandle';
 const NO_DATE = 'Sin fecha';
+export const BASE_TAG = 'linkedIn';
+export const BASE_TYPE = 'contacto';
 
 function openDb() {
   return new Promise((resolve, reject) => {
@@ -49,7 +52,7 @@ export async function clearHandle() {
 }
 
 // ---------- Modelo en memoria ----------
-// { version: 1, people: { [slug]: { name, url, comments: [{ date, text }] } } }
+// { version: 1, people: { [slug]: { name, url, tags: [], comments: [{ date, text }] } } }
 
 export function emptyData() {
   return { version: 1, people: {} };
@@ -59,6 +62,11 @@ const pad = (n) => String(n).padStart(2, '0');
 
 export function formatDate(d = new Date()) {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+export function withBaseTag(tags) {
+  const list = Array.isArray(tags) ? tags.map(String).filter(Boolean) : [];
+  return list.some((t) => t.toLowerCase() === BASE_TAG.toLowerCase()) ? list : [...list, BASE_TAG];
 }
 
 // Normaliza datos de la caché (incluido el formato antiguo con id/createdAt).
@@ -74,20 +82,44 @@ export function normalize(raw) {
         text: c.text.trim(),
       }));
     if (comments.length) {
-      data.people[slug] = { name: String(p.name || slug), url: String(p.url || ''), comments };
+      data.people[slug] = {
+        name: String(p.name || slug),
+        url: String(p.url || ''),
+        tags: withBaseTag(p.tags),
+        comments,
+      };
     }
   }
   return data;
 }
 
-// ---------- Nombre de fichero <-> slug ----------
+// ---------- Nombres de fichero ----------
 
-export function fileNameFor(slug) {
-  // Los caracteres no seguros en Windows (incluido '*') se codifican como %XX.
-  const safe = encodeURIComponent(slug).replace(/[!'()*~]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase());
-  return safe + '.md';
+const RESERVED = /^(con|prn|aux|nul|com[1-9]|lpt[1-9])$/i;
+
+function sanitize(s) {
+  let base = String(s || '')
+    .normalize('NFC')
+    .replace(/[\u0000-\u001f<>:"/\\|?*]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 120)
+    .replace(/[. ]+$/, '');
+  if (RESERVED.test(base)) base = '_' + base;
+  return base;
 }
 
+// Nombre de fichero a partir del nombre real; si queda vacío se usa el slug.
+export function fileNameFor(name, slug) {
+  return (sanitize(name) || sanitize(slug) || 'sin-nombre') + '.md';
+}
+
+// Variante con el slug, para cuando otra persona ya ocupa "<Nombre>.md".
+export function fileNameWithSlug(name, slug) {
+  return `${sanitize(name) || 'sin-nombre'} (${sanitize(slug)}).md`;
+}
+
+// Slug que se deducía del nombre de fichero en el formato antiguo (<slug>.md codificado).
 export function slugFromFileName(name) {
   const base = name.replace(/\.md$/i, '');
   try {
@@ -115,8 +147,22 @@ function parseYamlValue(raw) {
   return v;
 }
 
-export function serializePerson(person) {
-  const out = ['---', `name: ${yamlValue(person.name)}`, `url: ${person.url}`, '---', ''];
+function yamlTag(t) {
+  return /^[\w-]+$/.test(t) ? t : yamlValue(t);
+}
+
+export function serializePerson(person, slug) {
+  const out = [
+    '---',
+    `name: ${yamlValue(person.name)}`,
+    `slugLinkedId: ${yamlValue(slug)}`,
+    `url: ${person.url}`,
+    `type: ${BASE_TYPE}`,
+    'tags:',
+    ...withBaseTag(person.tags).map((t) => `  - ${yamlTag(t)}`),
+    '---',
+    '',
+  ];
   for (const c of person.comments) {
     out.push(`## ${c.date || NO_DATE}`, '');
     // Una línea del texto que empiece por "## " se escapa para no crear otra sección.
@@ -125,22 +171,58 @@ export function serializePerson(person) {
   return out.join('\n');
 }
 
-// Devuelve { name, url, comments } o null si no hay ningún comentario.
-export function parsePerson(markdown, slug) {
+// Devuelve { slug, legacy, name, url, tags, comments } o null si el fichero no es una
+// nota de LinkedIn reconocible (sin slug) o no tiene ningún comentario.
+// `legacy` indica que no traía slugLinkedId (formato anterior, slug deducido de la URL).
+export function parsePerson(markdown) {
   let text = markdown.replace(/\r\n?/g, '\n');
   let name = '';
   let url = '';
+  let slug = '';
+  let tags = [];
 
   const fm = text.match(/^---\n([\s\S]*?)\n---[ \t]*(?:\n|$)/);
   if (fm) {
-    for (const line of fm[1].split('\n')) {
-      const m = line.match(/^(\w+):\s*(.*)$/);
+    const lines = fm[1].split('\n');
+    for (let i = 0; i < lines.length; i++) {
+      const m = lines[i].match(/^(\w+):\s*(.*)$/);
       if (!m) continue;
-      if (m[1] === 'name') name = parseYamlValue(m[2]);
-      else if (m[1] === 'url') url = parseYamlValue(m[2]);
+      const [, key, val] = m;
+      if (key === 'name') name = parseYamlValue(val);
+      else if (key === 'url') url = parseYamlValue(val);
+      else if (key === 'slugLinkedId') slug = parseYamlValue(val);
+      else if (key === 'tags') {
+        if (val.trim()) {
+          tags = val
+            .trim()
+            .replace(/^\[|\]$/g, '')
+            .split(',')
+            .map(parseYamlValue)
+            .filter(Boolean);
+        } else {
+          let item;
+          while (i + 1 < lines.length && (item = lines[i + 1].match(/^\s*-\s*(.+)$/))) {
+            tags.push(parseYamlValue(item[1]));
+            i++;
+          }
+        }
+      }
     }
     text = text.slice(fm[0].length);
   }
+
+  const legacy = !slug;
+  if (legacy) {
+    const m = url.match(/\/in\/([^/?#]+)/);
+    if (m) {
+      try {
+        slug = decodeURIComponent(m[1]);
+      } catch {
+        slug = m[1];
+      }
+    }
+  }
+  if (!slug) return null;
 
   const comments = [];
   const parts = text.split(/^## (.*)$/m); // [preámbulo, fecha1, cuerpo1, fecha2, cuerpo2…]
@@ -152,5 +234,5 @@ export function parsePerson(markdown, slug) {
   for (let i = 1; i < parts.length; i += 2) push(parts[i], parts[i + 1] || '');
 
   if (!comments.length) return null;
-  return { name: name || slug, url, comments };
+  return { slug, legacy, name: name || slug, url, tags: withBaseTag(tags), comments };
 }
