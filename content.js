@@ -97,6 +97,7 @@
     if (a.dataset.lnknDone) return;
     const slug = slugFromHref(a.href);
     if (!slug) return;
+    if (slug === profileSlug()) return; // en su propio perfil solo va el badge de la cabecera
     const name = nameFromAnchor(a);
     if (name.length < 2) return; // enlaces de imagen/avatar: se ignoran
     a.dataset.lnknDone = '1';
@@ -133,19 +134,47 @@
     (target || a).insertAdjacentElement('afterend', badge);
   }
 
+  // Sube desde el enlace hasta la fila de ubicación (ubicación · Información de contacto):
+  // el último elemento antes de que su padre apile a sus hijos en vertical.
+  function locationRow(link) {
+    let row = link.closest('p') || link;
+    for (let i = 0; i < 4 && row.parentElement; i++) {
+      const cs = getComputedStyle(row.parentElement);
+      if (cs.display === 'block' || (cs.display === 'flex' && cs.flexDirection.startsWith('column'))) break;
+      row = row.parentElement;
+    }
+    return row;
+  }
+
+  function profileSlug() {
+    const m = location.pathname.match(/^\/in\/([^/]+)\/?$/);
+    return m ? decodeURIComponent(m[1]) : null;
+  }
+
   function processProfileHeader() {
     const m = location.pathname.match(/^\/in\/([^/]+)\/?$/);
-    const slug = m ? decodeURIComponent(m[1]) : null;
+    const slug = profileSlug();
     document.querySelectorAll('.lnkn-profile').forEach((b) => {
       if (b.dataset.slug !== slug) b.remove();
     });
     if (!slug) return;
-    const h1 = document.querySelector('main h1');
-    if (!h1) return;
-    const exists = h1.parentElement.querySelector(`.lnkn-profile[data-slug="${CSS.escape(slug)}"]`);
-    if (exists) return;
-    const name = h1.textContent.trim();
-    h1.insertAdjacentElement('afterend', createBadge(slug, name, `${location.origin}/in/${m[1]}/`, true));
+    // Badges de enlaces a este mismo perfil creados antes de entrar en él (navegación sin recarga).
+    document.querySelectorAll(`.lnkn-badge:not(.lnkn-profile)[data-slug="${CSS.escape(slug)}"]`).forEach((b) => b.remove());
+    // El badge va justo debajo de la línea de ubicación, que es la que lleva el enlace
+    // "Información de contacto" (se identifica por su href, no por el idioma ni por clases).
+    // Si no está, se cuelga del nombre: <h1> o, en perfiles sin <h1>, el <h2> igual al título.
+    const title = document.title.replace(/^\(\d+\)\s*/, '').split('|')[0].trim();
+    const heading =
+      document.querySelector('main h1') ||
+      [...document.querySelectorAll('main h2')].find((h) => h.textContent.trim() === title);
+    const contact = document.querySelector('main a[href*="/overlay/contact-info"]');
+    const anchor = contact ? locationRow(contact) : heading;
+    if (!anchor) return;
+    const prev = document.querySelector(`.lnkn-profile[data-slug="${CSS.escape(slug)}"]`);
+    if (prev && prev.previousElementSibling === anchor) return;
+    prev?.remove(); // pudo colocarse antes de que apareciera la línea de ubicación
+    const name = heading?.textContent.trim() || title;
+    anchor.insertAdjacentElement('afterend', createBadge(slug, name, `${location.origin}/in/${m[1]}/`, true));
   }
 
   function scan() {
