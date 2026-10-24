@@ -6,7 +6,6 @@
 const DB_NAME = 'linkedin-notas';
 const STORE = 'kv';
 const HANDLE_KEY = 'fileHandle';
-const NO_DATE = 'Sin fecha';
 export const BASE_TAG = 'linkedIn';
 export const BASE_TYPE = 'contacto';
 
@@ -52,7 +51,7 @@ export async function clearHandle() {
 }
 
 // ---------- Modelo en memoria ----------
-// { version: 1, people: { [slug]: { name, url, tags: [], comments: [{ date, text }] } } }
+// { version: 1, people: { [slug]: { name, url, tags: [], titular } } }
 
 export function emptyData() {
   return { version: 1, people: {} };
@@ -69,24 +68,27 @@ export function withBaseTag(tags) {
   return list.some((t) => t.toLowerCase() === BASE_TAG.toLowerCase()) ? list : [...list, BASE_TAG];
 }
 
-// Normaliza datos de la caché (incluido el formato antiguo con id/createdAt).
+// Último comentario del formato antiguo (lista de { date, text }), usado como titular.
+function lastComment(comments) {
+  const last = Array.isArray(comments)
+    ? comments.filter((c) => c && typeof c.text === 'string' && c.text.trim()).pop()
+    : null;
+  return last ? last.text.trim() : '';
+}
+
+// Normaliza datos de la caché (incluido el formato antiguo con lista de comentarios).
 export function normalize(raw) {
   const data = emptyData();
   if (!raw || typeof raw !== 'object' || !raw.people || typeof raw.people !== 'object') return data;
   for (const [slug, p] of Object.entries(raw.people)) {
-    if (!p || !Array.isArray(p.comments)) continue;
-    const comments = p.comments
-      .filter((c) => c && typeof c.text === 'string' && c.text.trim())
-      .map((c) => ({
-        date: typeof c.date === 'string' ? c.date : c.createdAt ? formatDate(new Date(c.createdAt)) : '',
-        text: c.text.trim(),
-      }));
-    if (comments.length) {
+    if (!p) continue;
+    const titular = typeof p.titular === 'string' ? p.titular.trim() : lastComment(p.comments);
+    if (titular) {
       data.people[slug] = {
         name: String(p.name || slug),
         url: String(p.url || ''),
         tags: withBaseTag(p.tags),
-        comments,
+        titular,
       };
     }
   }
@@ -160,34 +162,30 @@ function yamlTag(t) {
 }
 
 export function serializePerson(person, slug) {
-  const out = [
+  return [
     '---',
     `slugLinkedIn: ${yamlValue(slug)}`,
     `url: ${person.url}`,
     `type: ${BASE_TYPE}`,
+    `titular: ${yamlValue(person.titular)}`,
     'tags:',
     ...withBaseTag(person.tags).map((t) => `  - ${yamlTag(t)}`),
     '---',
     '',
-  ];
-  for (const c of person.comments) {
-    out.push(`## ${c.date || NO_DATE}`, '');
-    // Una línea del texto que empiece por "## " se escapa para no crear otra sección.
-    out.push(c.text.replace(/^## /gm, '\\## '), '');
-  }
-  return out.join('\n');
+  ].join('\n');
 }
 
 // El nombre de la persona es el del fichero (sin .md ni el sufijo " (slug)"); un `name:` en el
 // frontmatter, de versiones anteriores, tiene prioridad al leer.
-// Devuelve { slug, legacy, name, url, tags, comments } o null si el fichero no es una
-// nota de LinkedIn reconocible (sin slug) o no tiene ningún comentario.
+// Devuelve { slug, legacy, name, url, tags, titular } o null si el fichero no es una nota de
+// LinkedIn reconocible (sin slug) o no tiene titular.
 // `legacy` indica que no traía slugLinkedIn (formato anterior, slug deducido de la URL).
 export function parsePerson(markdown, fileName = '') {
   let text = markdown.replace(/\r\n?/g, '\n');
   let name = '';
   let url = '';
   let slug = '';
+  let titular = '';
   let tags = [];
 
   const fm = text.match(/^---\n([\s\S]*?)\n---[ \t]*(?:\n|$)/);
@@ -199,6 +197,7 @@ export function parsePerson(markdown, fileName = '') {
       const [, key, val] = m;
       if (key === 'name') name = parseYamlValue(val);
       else if (key === 'url') url = parseYamlValue(val);
+      else if (key === 'titular') titular = parseYamlValue(val);
       // slugLinkedId: nombre usado por la versión 1.2.0, se sigue aceptando al leer.
       else if (key === 'slugLinkedIn' || (key === 'slugLinkedId' && !slug)) slug = parseYamlValue(val);
       else if (key === 'tags') {
@@ -234,15 +233,14 @@ export function parsePerson(markdown, fileName = '') {
   }
   if (!slug) return null;
 
-  const comments = [];
-  const parts = text.split(/^## (.*)$/m); // [preámbulo, fecha1, cuerpo1, fecha2, cuerpo2…]
-  const push = (date, body) => {
-    const t = body.trim().replace(/^\\## /gm, '## ');
-    if (t) comments.push({ date: date.trim() === NO_DATE ? '' : date.trim(), text: t });
-  };
-  push('', parts[0]); // texto escrito a mano antes de la primera sección
-  for (let i = 1; i < parts.length; i += 2) push(parts[i], parts[i + 1] || '');
+  // Ficheros anteriores sin `titular`: se toma el último comentario (sección "## fecha").
+  if (!titular.trim()) {
+    const parts = text.split(/^## (.*)$/m); // [preámbulo, fecha1, cuerpo1, fecha2, cuerpo2…]
+    const bodies = [parts[0], ...parts.filter((_, i) => i > 0 && i % 2 === 0)];
+    titular = bodies.map((b) => b.trim().replace(/^\## /gm, '## ')).filter(Boolean).pop() || '';
+  }
+  titular = titular.trim();
 
-  if (!comments.length) return null;
-  return { slug, legacy, name: name || nameFromFileName(fileName, slug), url, tags: withBaseTag(tags), comments };
+  if (!titular) return null;
+  return { slug, legacy, name: name || nameFromFileName(fileName, slug), url, tags: withBaseTag(tags), titular };
 }

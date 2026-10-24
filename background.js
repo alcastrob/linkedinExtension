@@ -2,7 +2,6 @@ import {
   getHandle,
   emptyData,
   normalize,
-  formatDate,
   fileNameFor,
   fileNameWithSlug,
   serializePerson,
@@ -64,13 +63,13 @@ async function removeFile(dir, name) {
   }
 }
 
-// Escribe el fichero de una persona, o lo borra si ya no tiene comentarios.
+// Escribe el fichero de una persona, o lo borra si ya no tiene titular.
 // El nombre de fichero se fija al crearlo (o al migrar el formato antiguo) y después
 // se respeta, aunque el usuario lo renombre a mano.
 async function syncPerson(dir, slug, person, idx) {
   const current = idx.files.get(slug);
 
-  if (!person || !person.comments.length) {
+  if (!person || !person.titular) {
     if (current) await removeFile(dir, current);
     idx.files.delete(slug);
     if (current) idx.taken.delete(current.toLowerCase());
@@ -129,35 +128,30 @@ async function load() {
 
 // ---------- Operaciones ----------
 
-// Devuelve el slug modificado, o null si la operación no procede (conflicto o vacía).
+// Devuelve el slug modificado, o null si la operación no procede (conflicto, vacía o sin cambios).
 function applyOp(data, msg) {
   const { slug } = msg;
   if (!slug) throw new Error('slug requerido');
   const text = (msg.text || '').trim();
 
-  if (msg.op === 'add') {
+  if (msg.op === 'set') {
     if (!text) return null;
     // El nombre y la URL solo se fijan al crear la persona: así el nombre de fichero es estable.
-    const person = data.people[slug] || { name: msg.name || slug, url: msg.url || '', tags: [], comments: [] };
-    person.comments.push({ date: formatDate(), text });
+    const person = data.people[slug] || { name: msg.name || slug, url: msg.url || '', tags: [], titular: '' };
+    if (person.titular === text) return null;
+    person.titular = text;
     data.people[slug] = person;
     return slug;
   }
 
-  // edit / delete: el comentario se identifica por posición y se comprueba su texto,
-  // por si el fichero cambió (p. ej. edición manual) desde que se pintó el panel.
-  const person = data.people[slug];
-  const c = person?.comments[msg.index];
-  if (!c || c.text !== msg.oldText) return null;
-
-  if (msg.op === 'edit') {
-    if (!text) return null;
-    c.text = text;
-  } else if (msg.op === 'delete') {
-    person.comments.splice(msg.index, 1);
-    if (!person.comments.length) delete data.people[slug];
-  } else return null;
-  return slug;
+  // delete: se comprueba el texto, por si el fichero cambió (p. ej. edición manual)
+  // desde que se pintó el panel.
+  if (msg.op === 'delete') {
+    if (data.people[slug]?.titular !== msg.oldText) return null;
+    delete data.people[slug];
+    return slug;
+  }
+  return null;
 }
 
 async function runOp(msg) {

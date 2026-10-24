@@ -78,21 +78,15 @@
   }
 
   function updateBadge(b) {
-    const comments = data.people[b.dataset.slug]?.comments || [];
+    const titular = data.people[b.dataset.slug]?.titular || '';
     const btn = b.querySelector('.lnkn-btn');
     const prev = b.querySelector('.lnkn-preview');
-    b.classList.toggle('lnkn-has', comments.length > 0);
-    btn.textContent = comments.length ? `📝 ${comments.length}` : '📝 +';
-    btn.title = comments.length ? 'Ver o editar comentarios' : 'Añadir comentario';
-    if (comments.length) {
-      const last = comments[comments.length - 1].text;
-      prev.textContent = last;
-      prev.title = last;
-      prev.hidden = false;
-    } else {
-      prev.textContent = '';
-      prev.hidden = true;
-    }
+    b.classList.toggle('lnkn-has', !!titular);
+    btn.textContent = titular ? '📝' : '📝 +';
+    btn.title = titular ? 'Ver o editar el titular' : 'Añadir titular';
+    prev.textContent = titular;
+    prev.title = titular;
+    prev.hidden = !titular;
   }
 
   function refreshBadges() {
@@ -182,8 +176,6 @@
       header { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 8px; }
       header strong { font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
       .item { border-top: 1px solid #e3e6e8; padding: 8px 0; }
-      .text { white-space: pre-wrap; word-break: break-word; }
-      .meta { color: #6b7580; font-size: 11px; margin-top: 2px; }
       .actions { display: flex; gap: 6px; margin-top: 6px; }
       textarea { width: 100%; box-sizing: border-box; min-height: 60px; resize: vertical; font: inherit;
                  padding: 6px; border: 1px solid #b0b7bf; border-radius: 6px; }
@@ -196,15 +188,13 @@
       .status { margin-top: 8px; font-size: 11px; color: #6b7580; }
       .status.bad { color: #b24020; }
       .status a { color: inherit; text-decoration: underline; cursor: pointer; }
-      .empty { color: #6b7580; margin: 6px 0; }
     </style>
     <div class="box"></div>`;
   const box = shadow.querySelector('.box');
   document.documentElement.appendChild(host);
 
   let current = null; // { slug, name, url, badge }
-  let editingId = null;
-  let confirmId = null;
+  let confirmDelete = false;
   let confirmTimer = null;
 
   function el(tag, props = {}, ...children) {
@@ -221,8 +211,7 @@
       url: badge.dataset.url,
       badge,
     };
-    editingId = null;
-    confirmId = null;
+    confirmDelete = false;
     host.style.display = 'block';
     renderPopover();
     position();
@@ -250,7 +239,7 @@
   function renderPopover() {
     if (!current) return;
     const person = data.people[current.slug];
-    const comments = person?.comments || [];
+    const titular = person?.titular || '';
     const displayName = person?.name || current.name;
 
     box.replaceChildren();
@@ -259,73 +248,40 @@
     close.addEventListener('click', closePopover);
     box.append(el('header', {}, el('strong', { textContent: displayName, title: displayName }), close));
 
-    if (!comments.length) box.append(el('div', { className: 'empty', textContent: 'Aún no hay comentarios.' }));
-
-    comments.forEach((c, i) => {
-      const item = el('div', { className: 'item' });
-      if (editingId === i) {
-        const ta = el('textarea', { value: c.text });
-        const save = el('button', { className: 'primary', textContent: 'Guardar' });
-        const cancel = el('button', { textContent: 'Cancelar' });
-        save.addEventListener('click', () => {
-          const text = ta.value.trim();
-          editingId = null;
-          if (text && text !== c.text) doOp({ op: 'edit', slug: current.slug, index: i, oldText: c.text, text });
-          else renderPopover();
-        });
-        cancel.addEventListener('click', () => {
-          editingId = null;
-          renderPopover();
-        });
-        item.append(ta, el('div', { className: 'actions' }, save, cancel));
-        setTimeout(() => ta.focus(), 0);
-      } else {
-        const edit = el('button', { textContent: 'Editar' });
-        const del = el('button', {
-          className: 'danger' + (confirmId === i ? ' confirm' : ''),
-          textContent: confirmId === i ? 'Confirmar' : 'Eliminar',
-        });
-        edit.addEventListener('click', () => {
-          editingId = i;
-          renderPopover();
-        });
-        del.addEventListener('click', () => {
-          if (confirmId === i) {
-            confirmId = null;
-            doOp({ op: 'delete', slug: current.slug, index: i, oldText: c.text });
-          } else {
-            confirmId = i;
-            clearTimeout(confirmTimer);
-            confirmTimer = setTimeout(() => {
-              confirmId = null;
-              if (current) renderPopover();
-            }, 3000);
-            renderPopover();
-          }
-        });
-        item.append(
-          el('div', { className: 'text', textContent: c.text }),
-          el('div', { className: 'meta', textContent: c.date || '' }),
-          el('div', { className: 'actions' }, edit, del),
-        );
-      }
-      box.append(item);
-    });
-
-    // Nuevo comentario
-    const newTa = el('textarea', { placeholder: 'Añadir comentario…' });
-    const add = el('button', { className: 'primary', textContent: 'Añadir' });
+    const ta = el('textarea', { value: titular, placeholder: 'Titular…' });
+    const save = el('button', { className: 'primary', textContent: 'Guardar' });
     const commit = () => {
-      const text = newTa.value.trim();
-      if (!text) return;
-      newTa.value = '';
-      doOp({ op: 'add', slug: current.slug, name: current.name, url: current.url, text });
+      const text = ta.value.trim();
+      if (text && text !== titular) doOp({ op: 'set', slug: current.slug, name: current.name, url: current.url, text });
     };
-    add.addEventListener('click', commit);
-    newTa.addEventListener('keydown', (e) => {
+    save.addEventListener('click', commit);
+    ta.addEventListener('keydown', (e) => {
       if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) commit();
     });
-    box.append(el('div', { className: 'item' }, newTa, el('div', { className: 'actions' }, add)));
+    const actions = el('div', { className: 'actions' }, save);
+
+    if (titular) {
+      const del = el('button', {
+        className: 'danger' + (confirmDelete ? ' confirm' : ''),
+        textContent: confirmDelete ? 'Confirmar' : 'Eliminar',
+      });
+      del.addEventListener('click', () => {
+        if (confirmDelete) {
+          confirmDelete = false;
+          doOp({ op: 'delete', slug: current.slug, oldText: titular });
+        } else {
+          confirmDelete = true;
+          clearTimeout(confirmTimer);
+          confirmTimer = setTimeout(() => {
+            confirmDelete = false;
+            if (current) renderPopover();
+          }, 3000);
+          renderPopover();
+        }
+      });
+      actions.append(del);
+    }
+    box.append(el('div', { className: 'item' }, ta, actions));
 
     // Estado del fichero
     const st = el('div', { className: 'status' + (status === 'ok' || status === 'unknown' ? '' : ' bad') });

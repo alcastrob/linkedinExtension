@@ -1,7 +1,7 @@
 # LinkedIn Notas
 
-Extensión de Chrome (Manifest V3) para añadir, editar y eliminar comentarios privados sobre
-personas que aparecen en LinkedIn. Los comentarios se guardan en una carpeta local, un fichero
+Extensión de Chrome (Manifest V3) para añadir, editar y eliminar un titular privado sobre
+personas que aparecen en LinkedIn. Los titulares se guardan en una carpeta local, un fichero
 Markdown por persona.
 
 ## Instalación
@@ -16,7 +16,7 @@ Markdown por persona.
 ## Uso
 
 En resultados de búsqueda, feed y perfiles aparece un botón `📝 +` junto al nombre de cada persona.
-Al pulsarlo se abre un panel para añadir, editar y eliminar comentarios. El último comentario
+Al pulsarlo se abre un panel para escribir, editar y eliminar el titular. El titular
 se muestra como etiqueta amarilla junto al nombre.
 
 ## Formato de los ficheros
@@ -30,21 +30,16 @@ El frontmatter no lleva `name`: el nombre de la persona es el del fichero. La id
 slugLinkedIn: "slug-del-perfil"
 url: https://www.linkedin.com/in/slug-del-perfil/
 type: contacto
+titular: "Conocida del evento. Interesante para el proyecto X."
 tags:
   - linkedIn
 ---
-
-## 2026-10-10 11:40
-
-Conocida del evento. Interesante para el proyecto X.
-
-## 2026-10-12 09:15
-
-Me respondió al mensaje, propone llamada.
 ```
 
 - `type` es siempre `contacto` y `tags` siempre incluye `linkedIn`. Si añades otras etiquetas a mano, se conservan.
-- Cada sección `##` es un comentario; su título es la fecha de creación.
+- `titular` es el único texto de la persona y vive en el frontmatter; el cuerpo del fichero no se usa
+  (se reescribe vacío). Los saltos de línea se guardan como `
+` dentro de las comillas.
 - **Nombre de fichero:** se fija al crear la nota, saneado para Windows (se eliminan `<>:"/\|?*`).
   Si ya existe otra persona con ese nombre, se usa `Nombre (slug).md`. Después no se renombra
   automáticamente, así que puedes renombrarlo tú: se localiza por `slugLinkedIn`, no por el nombre,
@@ -54,13 +49,11 @@ Me respondió al mensaje, propone llamada.
   deduce de `url`) y se renombran al formato nuevo la primera vez que se modifican.
   El nombre `slugLinkedId` usado en la versión 1.2.0 también se acepta al leer y se reescribe como `slugLinkedIn`.
 - Los ficheros `.md` de la carpeta sin `slugLinkedIn` ni URL de LinkedIn se ignoran y no se tocan.
-- Los comentarios no llevan identificador: se localizan por posición y se comprueba su texto,
-  de modo que si editas un fichero a mano mientras el panel está abierto, la operación se
-  descarta y el panel se refresca en vez de pisar nada.
-- Texto escrito a mano antes de la primera sección cuenta como un comentario sin fecha
-  (se guardará con el título `## Sin fecha`).
-- Una línea de un comentario que empiece por `## ` se guarda escapada (`\## `).
-- Al eliminar el último comentario de una persona se borra su fichero.
+- Para eliminar, el panel comprueba que el titular siga siendo el que mostraba; si editas el fichero
+  a mano mientras está abierto, la operación se descarta y el panel se refresca en vez de pisar nada.
+- **Formato con comentarios:** los ficheros sin `titular` y con secciones `## fecha` se siguen leyendo; el
+  titular es el último comentario. Al guardar se reescriben con `titular` y se pierden las secciones anteriores.
+- Al eliminar el titular de una persona se borra su fichero.
 
 Los ficheros se releen en cada operación, así que puedes editarlos a mano.
 
