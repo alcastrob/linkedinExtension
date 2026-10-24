@@ -48,7 +48,7 @@ async function readDir(dir) {
     const parsed = parsePerson(await (await entry.getFile()).text(), entry.name);
     if (!parsed) continue;
     const { slug, legacy, ...person } = parsed;
-    data.people[slug] = person;
+    if (person.titular) data.people[slug] = person; // sin titular la persona no cuenta, pero su fichero se reutiliza
     idx.files.set(slug, entry.name);
     if (legacy) idx.legacy.add(slug);
   }

@@ -178,10 +178,10 @@ export function serializePerson(person, slug) {
 // El nombre de la persona es el del fichero (sin .md ni el sufijo " (slug)"); un `name:` en el
 // frontmatter, de versiones anteriores, tiene prioridad al leer.
 // Devuelve { slug, legacy, name, url, tags, titular } o null si el fichero no es una nota de
-// LinkedIn reconocible (sin slug) o no tiene titular.
+// LinkedIn reconocible (sin slug). `titular` puede ser '': el cuerpo del fichero no se lee.
 // `legacy` indica que no traía slugLinkedIn (formato anterior, slug deducido de la URL).
 export function parsePerson(markdown, fileName = '') {
-  let text = markdown.replace(/\r\n?/g, '\n');
+  const text = markdown.replace(/\r\n?/g, '\n');
   let name = '';
   let url = '';
   let slug = '';
@@ -217,7 +217,6 @@ export function parsePerson(markdown, fileName = '') {
         }
       }
     }
-    text = text.slice(fm[0].length);
   }
 
   const legacy = !slug;
@@ -233,14 +232,12 @@ export function parsePerson(markdown, fileName = '') {
   }
   if (!slug) return null;
 
-  // Ficheros anteriores sin `titular`: se toma el último comentario (sección "## fecha").
-  if (!titular.trim()) {
-    const parts = text.split(/^## (.*)$/m); // [preámbulo, fecha1, cuerpo1, fecha2, cuerpo2…]
-    const bodies = [parts[0], ...parts.filter((_, i) => i > 0 && i % 2 === 0)];
-    titular = bodies.map((b) => b.trim().replace(/^\## /gm, '## ')).filter(Boolean).pop() || '';
-  }
-  titular = titular.trim();
-
-  if (!titular) return null;
-  return { slug, legacy, name: name || nameFromFileName(fileName, slug), url, tags: withBaseTag(tags), titular };
+  return {
+    slug,
+    legacy,
+    name: name || nameFromFileName(fileName, slug),
+    url,
+    tags: withBaseTag(tags),
+    titular: titular.trim(),
+  };
 }

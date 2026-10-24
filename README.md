@@ -51,8 +51,8 @@ tags:
 - Los ficheros `.md` de la carpeta sin `slugLinkedIn` ni URL de LinkedIn se ignoran y no se tocan.
 - Para eliminar, el panel comprueba que el titular siga siendo el que mostraba; si editas el fichero
   a mano mientras está abierto, la operación se descarta y el panel se refresca en vez de pisar nada.
-- **Formato con comentarios:** los ficheros sin `titular` y con secciones `## fecha` se siguen leyendo; el
-  titular es el último comentario. Al guardar se reescriben con `titular` y se pierden las secciones anteriores.
+- Un fichero con `slugLinkedIn` pero sin `titular` (o en blanco) cuenta como persona sin titular: el texto
+  del cuerpo no se lee ni se muestra. Al guardar un titular se reutiliza ese fichero y se reescribe sin cuerpo.
 - Al eliminar el titular de una persona se borra su fichero.
 
 Los ficheros se releen en cada operación, así que puedes editarlos a mano.
